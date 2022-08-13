@@ -13,6 +13,8 @@ pip install -r requirements.txt
 python main.py
 ```
 
+![end result](https://miro.medium.com/max/1400/1*9_6Gom2wBL78VfAeLoHQrQ.gif)
+
 Do you want to learn more about the process of building this, I wrote an article on @medium about it
 [Check it out here](https://medium.com/@hnahli/how-to-automate-job-application-using-python-case-study-5cab4225a856)
 

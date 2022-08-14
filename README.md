@@ -1,4 +1,4 @@
-Dice auto apply is a project I started when I started looking for new full time positions.
+Dice auto apply is a project I started when I was looking for new full time positions.
 
 There is a feature in Dice called `easy apply` where you just click adn boom, your resume sent to the job poster.
 

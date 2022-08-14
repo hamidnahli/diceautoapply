@@ -8,7 +8,13 @@ There is a feature in Dice called `easy apply` where you just click adn boom, yo
 pip install -r requirements.txt
 ```
 
-2 - Run main.py
+2 - Create a file with name `.env` on yor project folder then place your dice username and password
+```python
+EMAIL=your_username
+PASSWORD=your_password
+```
+
+3 - Run main.py
 ```bash
 python main.py
 ```
@@ -18,7 +24,7 @@ python main.py
 Do you want to learn more about the process of building this, I wrote an article on @medium about it
 [Check it out here](https://medium.com/@hnahli/how-to-automate-job-application-using-python-case-study-5cab4225a856)
 
-3 - Future updates:
+4 - Future updates:
 
 a - I might be adding more features to control the search parameters.
 

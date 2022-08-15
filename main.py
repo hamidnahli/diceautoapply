@@ -26,7 +26,7 @@ load_dotenv()
 
 
 def delay():
-    log.info('sleeping for sometime to before applying to the next job')
+    # log.info('sleeping for sometime to before applying to the next job')
     time.sleep(randint(15, 45))
 
 
@@ -68,16 +68,16 @@ def get_tokens():
     driver.find_element(By.ID, 'email').send_keys(os.getenv('EMAIL'))
     driver.find_element(By.ID, 'password').send_keys(os.getenv('PASSWORD'))
     driver.find_element(By.CSS_SELECTOR, '#loginDataSubmit > div:nth-child(3) > div > button').click()
-    cookies = driver.get_cookies()
-    authorization = [ele['value'] for ele in cookies if ele['name'] == 'access'][0]
-    candidate_id = [ele['value'] for ele in cookies if ele['name'] == 'candidate_id'][0]
+    cookies_ = driver.get_cookies()
+    authorization_ = [ele['value'] for ele in cookies_ if ele['name'] == 'access'][0]
+    candidate_id_ = [ele['value'] for ele in cookies_ if ele['name'] == 'candidate_id'][0]
     # scrap authToken
     driver.get(
         'https://www.dice.com/jobs?q=python%20developer&location=New%20York,%20NY,%20USA&latitude=40.7127753&longitude=-74.0059728&countryCode=US&locationPrecision=City&radius=30&radiusUnit=mi&page=1&pageSize=100&filters.employmentType=FULLTIME%7CCONTRACTS&filters.easyApply=true&language=en&eid=S2Q_,gKQ_')
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    auth_token = soup.find('dhi-js-dice-client')['auth-token']
+    auth_token_ = soup.find('dhi-js-dice-client')['auth-token']
     driver.quit()
-    return authorization, candidate_id, auth_token
+    return authorization_, candidate_id_, auth_token_, cookies_
 
 
 def get_job_id(legacy_id):
@@ -148,17 +148,49 @@ def search_jobs(query: dict) -> List:
         return data
 
 
-def apply(legacy_id):
-    authorization, candidate_id, auth_token = get_tokens()
+def get_applied_jobs(cookies, page):
+    data = []
+    s = requests.Session()
+    for cookie in cookies:
+        s.cookies.set(cookie['name'], cookie['value'])
+    headers = {
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
+        'Host': 'www.dice.com',
+        'If-Modified-Since': '0',
+        'Referer': 'https://www.dice.com/dashboard/jobs',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+        'sec-ch-ua': '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
+        'sec-ch-ua-mobile': '?0',
+    }
+    url = f'https://www.dice.com/config/dice/api.json?path=%2Fpeople%2F15670183%2Fapplications%3FincludeExpired%3Dfalse%26page%3D{page}%26count%3D100'
+    response = s.get(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()['documents']
+        data = data + get_applied_jobs(cookies, page + 1)
+    return data
+
+
+def apply(legacy_id, authorization_, auth_token_, candidate_id_, jobs_):
+    if jobs_:
+        jobs_ = [ele['jobId'] for ele in jobs_]
+        if legacy_id in jobs_:
+            return log.info(f'already applied for {legacy_id}')
     job_id = get_job_id(legacy_id)
     headers = {
         'Sec-Ch-Ua': '" Not A;Brand";v="99", "Chromium";v="104"',
         'Sec-Ch-Ua-Mobile': '?0',
-        'Authorization': authorization,
+        'Authorization': authorization_,
         'Content-Type': 'application/json',
         'Accept': '*/*',
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
-        'X-Legacy-Auth': auth_token,
+        'X-Legacy-Auth': auth_token_,
         'Origin': 'https://www.dice.com',
         'Sec-Fetch-Site': 'cross-site',
         'Sec-Fetch-Mode': 'cors',
@@ -172,7 +204,7 @@ def apply(legacy_id):
         "operationName": "createApplication",
         "variables": {
             "input": {
-                "candidate_id": candidate_id,
+                "candidate_id": candidate_id_,
                 "job_id": job_id,
                 "resume": None,
                 "cover_letter": None,
@@ -185,7 +217,11 @@ def apply(legacy_id):
         "query": "mutation createApplication($input: ApplicationInput!) {   createApplication(input: $input) {     application_id     __typename   } } "
     }
     response = requests.post(host, headers=headers, json=body)
-    return response.json()
+    data = response.json()['data']
+    if data.get('createApplication')['__typename'] == 'CreateApplicationOutput':
+        delay()
+        return log.info(f'{Fore.GREEN}successfully applied to {legacy_id}!{Style.RESET_ALL}')
+    return log.error(f'{Fore.RED}failed to applied to {legacy_id}!{Style.RESET_ALL}')
 
 
 search_query = {
@@ -211,6 +247,7 @@ search_query = {
 }
 emp_types = {0: 'PARTTIME', 1: 'FULLTIME', 2: 'CONTRACTS', 3: 'FULLTIME|CONTRACTS'}
 log = logger()
+
 if __name__ == '__main__':
     # Getting user desired search criteria.
     search_keyword = input("Job title: ")
@@ -229,10 +266,15 @@ if __name__ == '__main__':
             'filters.employmentType': employment_type
         }
     )
-    jobs = search_jobs(search_query)
-    log.info(f'found {len(jobs)} jobs matching the search criteria')
-    for job in jobs:
-        title = job['title']
-        apply(job['id'])
-        log.info(f'{Fore.GREEN}successfully applied to {job["id"]}!{Style.RESET_ALL}')
-        delay()
+    # Getting tokens:
+    log.info(f'scraping tokens for authentication')
+    authorization, candidate_id, auth_token, cookies = get_tokens()
+
+    # Retrieve jobs already applied for
+    log.info(f'retrieving jobs already applied for')
+    applied_jobs = get_applied_jobs(cookies, 1)
+    found_jobs = search_jobs(search_query)
+    log.info(f'found {len(found_jobs)} jobs matching the search criteria')
+    for job in found_jobs:
+        apply(job['id'], authorization, auth_token, candidate_id, applied_jobs)
+
